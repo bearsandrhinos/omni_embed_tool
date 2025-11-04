@@ -62,11 +62,60 @@ app.post('/api/generate-url', async (req, res) => {
     }
 });
 
+// Helper function to rewrite URLs in content to go through proxy
+function rewriteUrls(content, omniHostname, basePath) {
+    // Extract the Omni hostname from the URL
+    // omniHostname will be like "peter.embed-omniapp.co"
+    
+    // Rewrite absolute URLs to Omni domain
+    const omniDomainRegex = new RegExp(`https?://${omniHostname.replace(/\./g, '\\.')}`, 'gi');
+    content = content.replace(omniDomainRegex, `/proxy/${omniHostname}`);
+    
+    // Rewrite relative URLs that start with / (but not //)
+    // These need to be relative to the proxy path
+    content = content.replace(/(href|src|action|data-src|data-href)=["'](\/[^\/"'])/gi, (match, attr, url) => {
+        // If it's already a proxy path, leave it
+        if (url.startsWith('/proxy/')) return match;
+        // Otherwise, prepend the base path
+        return `${attr}="${basePath}${url}"`;
+    });
+    
+    // Rewrite fetch/XMLHttpRequest URLs in JavaScript
+    content = content.replace(/fetch\s*\(\s*["']([^"']+)["']/gi, (match, url) => {
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+            if (url.includes(omniHostname)) {
+                return `fetch("/proxy/${omniHostname}${new URL(url).pathname}${new URL(url).search}")`;
+            }
+        } else if (url.startsWith('/')) {
+            return `fetch("${basePath}${url}")`;
+        }
+        return match;
+    });
+    
+    // Rewrite XMLHttpRequest open URLs
+    content = content.replace(/\.open\s*\(\s*["'][^"']+["']\s*,\s*["']([^"']+)["']/gi, (match, url) => {
+        if (url.includes(omniHostname)) {
+            const urlObj = new URL(url.startsWith('http') ? url : `https://${omniHostname}${url}`);
+            return match.replace(url, `/proxy/${omniHostname}${urlObj.pathname}${urlObj.search}`);
+        } else if (url.startsWith('/')) {
+            return match.replace(url, `${basePath}${url}`);
+        }
+        return match;
+    });
+    
+    return content;
+}
+
 // Proxy endpoint to serve Omni content with correct headers
 app.get('/proxy/*', async (req, res) => {
     try {
         let omniUrl = req.url.replace('/proxy/', 'https://');
-        console.log('Proxying iframe request to:', omniUrl);
+        console.log('Proxying request to:', omniUrl);
+        
+        // Extract the Omni hostname for URL rewriting
+        const urlMatch = omniUrl.match(/https?:\/\/([^\/]+)/);
+        const omniHostname = urlMatch ? urlMatch[1] : '';
+        const basePath = `/proxy/${omniHostname}`;
         
         // Forward cookies from the request
         const cookieHeader = req.headers.cookie || '';
@@ -74,9 +123,10 @@ app.get('/proxy/*', async (req, res) => {
         // Forward other important headers
         const headers = {
             'User-Agent': req.get('user-agent') || 'Mozilla/5.0',
-            'Accept': req.get('accept') || 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept': req.get('accept') || '*/*',
             'Accept-Language': req.get('accept-language') || 'en-US,en;q=0.9',
             'Referer': omniUrl, // Set referer to the Omni domain
+            'Origin': `https://${omniHostname}`, // Set origin to Omni domain
         };
         
         if (cookieHeader) {
@@ -85,15 +135,26 @@ app.get('/proxy/*', async (req, res) => {
         
         // Fetch with redirect following
         const response = await fetch(omniUrl, {
-            method: 'GET',
+            method: req.method || 'GET',
             headers: headers,
             redirect: 'follow',
-            // Important: Don't follow redirects automatically, handle them manually
         });
         
         // Get content type
         const contentType = response.headers.get('content-type') || 'text/html';
-        const content = await response.text();
+        const isText = contentType.includes('text/') || 
+                      contentType.includes('application/javascript') ||
+                      contentType.includes('application/json') ||
+                      contentType.includes('application/xml');
+        
+        let content;
+        if (isText) {
+            content = await response.text();
+        } else {
+            // For binary content, get as buffer
+            const buffer = await response.arrayBuffer();
+            content = Buffer.from(buffer);
+        }
         
         // Get the current origin to allow iframe embedding
         const origin = req.get('origin') || req.get('referer') || '';
@@ -107,14 +168,16 @@ app.get('/proxy/*', async (req, res) => {
             res.setHeader('Set-Cookie', setCookieHeaders);
         }
         
-        // Rewrite CSP in content to be more permissive
-        // Replace any existing CSP meta tags or headers in the HTML
+        // Rewrite URLs in text content (HTML, JS, CSS)
         let modifiedContent = content;
-        if (contentType.includes('text/html')) {
-            // Remove or relax CSP meta tags in the HTML
+        if (isText && typeof content === 'string') {
+            // Remove CSP meta tags
             modifiedContent = content
                 .replace(/<meta[^>]*http-equiv=["']Content-Security-Policy["'][^>]*>/gi, '')
                 .replace(/content-security-policy[^>]*>/gi, '');
+            
+            // Rewrite all URLs to go through proxy
+            modifiedContent = rewriteUrls(modifiedContent, omniHostname, basePath);
         }
         
         // Set headers to allow iframe embedding from current origin
@@ -122,16 +185,89 @@ app.get('/proxy/*', async (req, res) => {
         res.set({
             'Content-Type': contentType,
             'X-Frame-Options': 'ALLOWALL',
-            'Content-Security-Policy': `frame-ancestors 'self' ${currentOrigin} http://localhost:* http://127.0.0.1:* https://*; default-src 'self' 'unsafe-inline' 'unsafe-eval' https://* http://* data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://* http://*; style-src 'self' 'unsafe-inline' https://* http://*; img-src 'self' data: https://* http://*; font-src 'self' data: https://* http://*; connect-src 'self' https://* http://* wss://* ws://*`,
+            'Content-Security-Policy': `frame-ancestors 'self' ${currentOrigin} http://localhost:* http://127.0.0.1:* https://*; default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ${currentOrigin} /proxy/; script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ${currentOrigin} /proxy/; style-src 'self' 'unsafe-inline' data: blob: ${currentOrigin} /proxy/; img-src 'self' data: blob: ${currentOrigin} /proxy/ https:; font-src 'self' data: blob: ${currentOrigin} /proxy/; connect-src 'self' ${currentOrigin} /proxy/ https: http: wss: ws:;`,
             'X-Content-Type-Options': 'nosniff',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         });
         
-        res.status(response.status).send(modifiedContent);
+        if (isText) {
+            res.status(response.status).send(modifiedContent);
+        } else {
+            res.status(response.status).send(content);
+        }
     } catch (error) {
         console.error('Proxy error:', error);
         console.error('Error details:', error.message, error.stack);
         res.status(500).send(`Proxy error: ${error.message}`);
     }
+});
+
+// Handle all HTTP methods for proxy (POST, PUT, DELETE, etc.)
+['post', 'put', 'delete', 'patch'].forEach(method => {
+    app[method]('/proxy/*', async (req, res) => {
+        try {
+            let omniUrl = req.url.replace('/proxy/', 'https://');
+            console.log(`Proxying ${method.toUpperCase()} request to:`, omniUrl);
+            
+            const urlMatch = omniUrl.match(/https?:\/\/([^\/]+)/);
+            const omniHostname = urlMatch ? urlMatch[1] : '';
+            
+            const headers = {
+                'Content-Type': req.get('content-type') || 'application/json',
+                'Cookie': req.headers.cookie || '',
+                'User-Agent': req.get('user-agent') || 'Mozilla/5.0',
+                'Origin': `https://${omniHostname}`,
+                'Referer': omniUrl,
+            };
+            
+            // Forward body
+            let body = req.body;
+            if (typeof body === 'object') {
+                body = JSON.stringify(body);
+            } else {
+                body = req.body;
+            }
+            
+            const response = await fetch(omniUrl, {
+                method: method.toUpperCase(),
+                headers: headers,
+                body: body,
+            });
+            
+            const contentType = response.headers.get('content-type') || 'application/json';
+            const content = await response.text();
+            
+            // Forward cookies
+            const setCookieHeaders = response.headers.raw()['set-cookie'];
+            if (setCookieHeaders) {
+                res.setHeader('Set-Cookie', setCookieHeaders);
+            }
+            
+            res.set({
+                'Content-Type': contentType,
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            });
+            
+            res.status(response.status).send(content);
+        } catch (error) {
+            console.error(`Proxy ${method} error:`, error);
+            res.status(500).send(`Proxy error: ${error.message}`);
+        }
+    });
+});
+
+// Handle OPTIONS for CORS preflight
+app.options('/proxy/*', (req, res) => {
+    res.set({
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    });
+    res.status(200).send();
 });
 
 // Hot reload endpoint - check for file changes
