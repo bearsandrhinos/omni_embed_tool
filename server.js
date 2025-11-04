@@ -65,10 +65,34 @@ app.post('/api/generate-url', async (req, res) => {
 // Proxy endpoint to serve Omni content with correct headers
 app.get('/proxy/*', async (req, res) => {
     try {
-        const omniUrl = req.url.replace('/proxy/', 'https://');
+        let omniUrl = req.url.replace('/proxy/', 'https://');
         console.log('Proxying iframe request to:', omniUrl);
         
-        const response = await fetch(omniUrl);
+        // Forward cookies from the request
+        const cookieHeader = req.headers.cookie || '';
+        
+        // Forward other important headers
+        const headers = {
+            'User-Agent': req.get('user-agent') || 'Mozilla/5.0',
+            'Accept': req.get('accept') || 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': req.get('accept-language') || 'en-US,en;q=0.9',
+            'Referer': omniUrl, // Set referer to the Omni domain
+        };
+        
+        if (cookieHeader) {
+            headers['Cookie'] = cookieHeader;
+        }
+        
+        // Fetch with redirect following
+        const response = await fetch(omniUrl, {
+            method: 'GET',
+            headers: headers,
+            redirect: 'follow',
+            // Important: Don't follow redirects automatically, handle them manually
+        });
+        
+        // Get content type
+        const contentType = response.headers.get('content-type') || 'text/html';
         const content = await response.text();
         
         // Get the current origin to allow iframe embedding
@@ -77,17 +101,26 @@ app.get('/proxy/*', async (req, res) => {
         const protocol = req.protocol || 'https';
         const currentOrigin = origin || `${protocol}://${host}`;
         
+        // Forward set-cookie headers from Omni to the client
+        const setCookieHeaders = response.headers.raw()['set-cookie'];
+        if (setCookieHeaders) {
+            res.setHeader('Set-Cookie', setCookieHeaders);
+        }
+        
         // Set headers to allow iframe embedding from current origin
         res.set({
-            'Content-Type': response.headers.get('content-type') || 'text/html',
+            'Content-Type': contentType,
             'X-Frame-Options': 'ALLOWALL',
-            'Content-Security-Policy': `frame-ancestors 'self' ${currentOrigin} http://localhost:* http://127.0.0.1:* https://*`
+            'Content-Security-Policy': `frame-ancestors 'self' ${currentOrigin} http://localhost:* http://127.0.0.1:* https://*`,
+            // Remove CSP headers that might block
+            'X-Content-Type-Options': 'nosniff',
         });
         
-        res.send(content);
+        res.status(response.status).send(content);
     } catch (error) {
         console.error('Proxy error:', error);
-        res.status(500).send('Proxy error: ' + error.message);
+        console.error('Error details:', error.message, error.stack);
+        res.status(500).send(`Proxy error: ${error.message}`);
     }
 });
 

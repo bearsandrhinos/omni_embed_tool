@@ -940,12 +940,24 @@ class OmniEmbedTester {
         }
         
         // Try loading directly first (since it works in a new tab)
-        // The proxy breaks cookies/sessions, so direct loading is preferred
-        console.log('🔄 Attempting direct iframe load (preferred method)');
-        console.log('📍 Direct URL:', url);
+        // However, if Omni blocks iframe embedding, we'll use the proxy
+        console.log('🔄 Attempting to load embed...');
+        console.log('📍 Original URL:', url);
         
-        // Try direct load first, fallback to proxy if needed
-        this.loadIframeWithRetry(url, url, 0, true);
+        // Check if we're on a production domain (not localhost)
+        const isProduction = !window.location.hostname.includes('localhost') && 
+                            !window.location.hostname.includes('127.0.0.1');
+        
+        if (isProduction) {
+            // On production, use proxy directly since Omni likely blocks iframe embedding
+            console.log('🌐 Production domain detected, using proxy method');
+            const proxyUrl = url.replace('https://', '/proxy/');
+            this.loadIframeWithRetry(proxyUrl, url, 0, false);
+        } else {
+            // On localhost, try direct first, then proxy
+            console.log('🏠 Localhost detected, trying direct first, then proxy');
+            this.loadIframeWithRetry(url, url, 0, true);
+        }
         
         // Check for iframe loading issues after a short delay
         setTimeout(() => {
