@@ -107,16 +107,26 @@ app.get('/proxy/*', async (req, res) => {
             res.setHeader('Set-Cookie', setCookieHeaders);
         }
         
+        // Rewrite CSP in content to be more permissive
+        // Replace any existing CSP meta tags or headers in the HTML
+        let modifiedContent = content;
+        if (contentType.includes('text/html')) {
+            // Remove or relax CSP meta tags in the HTML
+            modifiedContent = content
+                .replace(/<meta[^>]*http-equiv=["']Content-Security-Policy["'][^>]*>/gi, '')
+                .replace(/content-security-policy[^>]*>/gi, '');
+        }
+        
         // Set headers to allow iframe embedding from current origin
+        // Also set permissive CSP for the iframe content itself
         res.set({
             'Content-Type': contentType,
             'X-Frame-Options': 'ALLOWALL',
-            'Content-Security-Policy': `frame-ancestors 'self' ${currentOrigin} http://localhost:* http://127.0.0.1:* https://*`,
-            // Remove CSP headers that might block
+            'Content-Security-Policy': `frame-ancestors 'self' ${currentOrigin} http://localhost:* http://127.0.0.1:* https://*; default-src 'self' 'unsafe-inline' 'unsafe-eval' https://* http://* data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://* http://*; style-src 'self' 'unsafe-inline' https://* http://*; img-src 'self' data: https://* http://*; font-src 'self' data: https://* http://*; connect-src 'self' https://* http://* wss://* ws://*`,
             'X-Content-Type-Options': 'nosniff',
         });
         
-        res.status(response.status).send(content);
+        res.status(response.status).send(modifiedContent);
     } catch (error) {
         console.error('Proxy error:', error);
         console.error('Error details:', error.message, error.stack);
