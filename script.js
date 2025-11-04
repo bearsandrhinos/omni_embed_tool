@@ -438,39 +438,45 @@ class OmniEmbedTester {
         if (params.linkAccess && params.linkAccess.trim()) requestBody.linkAccess = params.linkAccess.trim();
         if (params.filterSearchParam && params.filterSearchParam.trim()) requestBody.filterSearchParam = params.filterSearchParam.trim();
         
-        // JSON parameters should be sent as JSON objects (not URL-encoded strings)
-        // URL encoding is only needed when these appear in URL query parameters
+        // JSON parameters should be sent as JSON strings (not objects/arrays)
+        // Omni API expects these as stringified JSON in the request body
         if (params.userAttributes && typeof params.userAttributes === 'string' && params.userAttributes.trim()) {
             try {
-                const userAttributesObj = JSON.parse(params.userAttributes);
-                requestBody.userAttributes = userAttributesObj; // Send as object, not URL-encoded
+                // Validate it's valid JSON, but send as string
+                JSON.parse(params.userAttributes);
+                requestBody.userAttributes = params.userAttributes.trim(); // Send as JSON string
             } catch (error) {
                 console.warn('Invalid userAttributes JSON, skipping:', error.message);
             }
         } else if (params.userAttributes && typeof params.userAttributes === 'object') {
-            requestBody.userAttributes = params.userAttributes; // Send as object
+            // Convert object to JSON string
+            requestBody.userAttributes = JSON.stringify(params.userAttributes);
         }
         
         if (params.connectionRoles && typeof params.connectionRoles === 'string' && params.connectionRoles.trim()) {
             try {
-                const connectionRolesObj = JSON.parse(params.connectionRoles);
-                requestBody.connectionRoles = connectionRolesObj; // Send as object, not URL-encoded
+                // Validate it's valid JSON, but send as string
+                JSON.parse(params.connectionRoles);
+                requestBody.connectionRoles = params.connectionRoles.trim(); // Send as JSON string
             } catch (error) {
                 console.warn('Invalid connectionRoles JSON, skipping:', error.message);
             }
         } else if (params.connectionRoles && typeof params.connectionRoles === 'object') {
-            requestBody.connectionRoles = params.connectionRoles; // Send as object
+            // Convert object to JSON string
+            requestBody.connectionRoles = JSON.stringify(params.connectionRoles);
         }
         
         if (params.groups && typeof params.groups === 'string' && params.groups.trim()) {
             try {
-                const groupsArray = JSON.parse(params.groups);
-                requestBody.groups = groupsArray; // Send as array, not URL-encoded
+                // Validate it's valid JSON, but send as string
+                JSON.parse(params.groups);
+                requestBody.groups = params.groups.trim(); // Send as JSON string
             } catch (error) {
                 console.warn('Invalid groups JSON, skipping:', error.message);
             }
         } else if (params.groups && Array.isArray(params.groups)) {
-            requestBody.groups = params.groups; // Send as array
+            // Convert array to JSON string
+            requestBody.groups = JSON.stringify(params.groups);
         }
 
         console.log('Proxy Request URL:', proxyUrl);
