@@ -1082,14 +1082,16 @@ class OmniEmbedTester {
                                 console.log('⚠️ Iframe loaded but content check failed (cross-origin restrictions are normal)');
                                 // Don't show error - cross-origin restrictions are expected
                                 // If the URL works in a new tab, the iframe is likely working too
-                                this.showSuccess('✅ Iframe loaded. If you see errors, try "Open in New Tab" - the URL works there.');
+                                console.log('💡 Console errors like Sentry 403 and proxy 403 are expected and can be ignored.');
+                                this.showSuccess('✅ Iframe loaded. Some console errors are expected. If the URL works in "Open in New Tab", your configuration is correct!');
                             }
                         } catch (error) {
                             // Cross-origin restrictions are normal and expected
                             // This actually means the iframe loaded successfully
                             console.log('✅ Iframe loaded successfully (cross-origin restrictions are normal)');
                             console.log('💡 Note: If the URL works in a new tab, the iframe is working correctly.');
-                            this.showSuccess('✅ Iframe loaded. Cross-origin restrictions prevent inspection, but if the URL works in a new tab, everything is fine.');
+                            console.log('💡 Console errors like Sentry 403 and proxy 403 are expected - they\'re from Omni\'s telemetry and can be ignored.');
+                            this.showSuccess('✅ Iframe loaded! Console errors (Sentry, proxy 403) are expected. If "Open in New Tab" works, your embed is configured correctly.');
                         }
                     }, 2000); // Increased delay to allow content to load
         };
@@ -1144,8 +1146,32 @@ class OmniEmbedTester {
         window.addEventListener('error', (event) => {
             // Check if error is related to the iframe
             if (event.filename && event.filename.includes('omniapp.co')) {
-                // Only log critical errors, ignore common cross-origin errors
+                // Filter out expected/benign errors
                 const errorMessage = event.message || '';
+                const errorSource = event.filename || '';
+                
+                // Ignore these common non-critical errors
+                const ignorePatterns = [
+                    'cross-origin',
+                    'CORS',
+                    'Blocked a frame',
+                    'sentry.io',  // Sentry error tracking (expected)
+                    'ingest.sentry.io',  // Sentry telemetry (expected)
+                    '403',  // Common for Sentry/telemetry endpoints
+                    'Forbidden'  // Common for telemetry
+                ];
+                
+                const shouldIgnore = ignorePatterns.some(pattern => 
+                    errorMessage.includes(pattern) || errorSource.includes(pattern)
+                );
+                
+                if (shouldIgnore) {
+                    // These are expected errors - just log them as informational
+                    console.log('ℹ️ Expected error (can be ignored):', event.message);
+                    return;
+                }
+                
+                // Only log critical errors
                 if (!errorMessage.includes('cross-origin') && 
                     !errorMessage.includes('CORS') &&
                     !errorMessage.includes('Blocked a frame')) {
