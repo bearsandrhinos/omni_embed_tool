@@ -811,11 +811,18 @@ class OmniEmbedTester {
             this.showIframeError('Iframe failed to load. This might be due to network issues or Omni server errors.');
         };
 
+        // Set up global error handler to catch React errors from Omni iframe
+        this.setupGlobalErrorHandler();
+
         // Iframe loading is now handled by loadIframeWithRetry method
 
         // Add additional event listeners for debugging
         this.embedFrame.addEventListener('load', () => {
             console.log('✅ Iframe load event listener fired');
+            // Check for errors after a short delay
+            setTimeout(() => {
+                this.checkForOmniErrors();
+            }, 2000);
         });
 
         this.embedFrame.addEventListener('error', (error) => {
@@ -887,19 +894,52 @@ class OmniEmbedTester {
         this.showSuccess('Embed refreshed!');
     }
 
-    showIframeError(customMessage = null) {
+    showIframeError(customMessage = null, errorType = 'general') {
         this.iframeError.style.display = 'flex';
-        if (customMessage) {
-            // Update the error message with custom text
-            const errorContent = this.iframeError.querySelector('.error-content');
-            if (errorContent) {
-                const errorText = errorContent.querySelector('p');
-                if (errorText) {
-                    errorText.textContent = customMessage;
+        const errorContent = this.iframeError.querySelector('.error-content');
+        if (errorContent && customMessage) {
+            // Update the error title
+            const errorTitle = errorContent.querySelector('h3');
+            if (errorTitle) {
+                if (errorType === 'omni') {
+                    errorTitle.textContent = '⚠️ Omni Application Error';
+                } else if (errorType === 'csp') {
+                    errorTitle.textContent = '⚠️ Iframe Blocked by CSP Policy';
+                } else {
+                    errorTitle.textContent = '⚠️ Iframe Loading Error';
                 }
             }
+            
+            // Update the error message
+            const errorText = errorContent.querySelector('p');
+            if (errorText) {
+                errorText.textContent = customMessage;
+            }
+            
+            // Update solutions section for Omni errors
+            const solutions = errorContent.querySelector('.error-solutions');
+            if (solutions && errorType === 'omni') {
+                solutions.innerHTML = `
+                    <h4>Possible Causes:</h4>
+                    <ul>
+                        <li><strong>Invalid Content Path:</strong> The contentPath may not exist or the user doesn't have access</li>
+                        <li><strong>Invalid Parameters:</strong> Check that all required parameters (externalId, name, secret) are correct</li>
+                        <li><strong>Connection Roles:</strong> Verify connectionRoles uses valid connection IDs from Omni Settings > Connections</li>
+                        <li><strong>User Permissions:</strong> The user may not have access to the requested content</li>
+                        <li><strong>Omni Instance Issue:</strong> There may be an issue with your Omni instance</li>
+                    </ul>
+                    <h4>Solutions:</h4>
+                    <ul>
+                        <li><strong>Check Parameters:</strong> Review the Debug Information section below for parameter details</li>
+                        <li><strong>Open in New Tab:</strong> Click the button below to open the embed URL directly in a new tab</li>
+                        <li><strong>Verify Content Path:</strong> Ensure the contentPath exists and is accessible in your Omni instance</li>
+                        <li><strong>Test with Different User:</strong> Try different user parameters to see if it's a permissions issue</li>
+                        <li><strong>Contact Support:</strong> If the issue persists, check your Omni instance status or contact Omni support</li>
+                    </ul>
+                `;
+            }
         }
-        this.showError('Iframe loading issue - see details below');
+        this.showError('Error detected - see details below');
     }
 
     loadIframeWithRetry(proxyUrl, originalUrl, retryCount = 0) {
@@ -960,6 +1000,139 @@ class OmniEmbedTester {
                 }
             }
         });
+    }
+
+    setupGlobalErrorHandler() {
+        // Store reference to this for use in error handler
+        const self = this;
+        
+        // Listen for errors from the iframe using postMessage
+        window.addEventListener('message', (event) => {
+            // Check if error is from Omni domain
+            if (event.origin && event.origin.includes('omniapp.co')) {
+                if (event.data && (event.data.error || event.data.type === 'error')) {
+                    console.error('🔍 Error received from Omni iframe:', event.data);
+                    self.handleOmniError(event.data);
+                }
+            }
+        });
+
+        // Also try to catch unhandled errors that might bubble up
+        window.addEventListener('error', (event) => {
+            // Check if error is related to the iframe
+            if (event.filename && event.filename.includes('omniapp.co')) {
+                console.error('🔍 Global error from Omni:', event);
+                self.handleOmniError({
+                    message: event.message,
+                    filename: event.filename,
+                    lineno: event.lineno,
+                    colno: event.colno
+                });
+            }
+        }, true);
+    }
+
+    handleOmniError(errorData) {
+        console.error('❌ Omni Application Error:', errorData);
+        
+        // Update debug info with error details
+        const errorInfo = {
+            type: 'Omni Application Error',
+            timestamp: new Date().toISOString(),
+            error: errorData,
+            suggestion: this.getErrorSuggestion(errorData),
+            currentParameters: this.getCurrentParameters()
+        };
+        
+        // Display error in debug section
+        if (this.debugInfo) {
+            try {
+                const currentDebug = JSON.parse(this.debugInfo.textContent || '{}');
+                this.debugInfo.textContent = JSON.stringify({
+                    ...currentDebug,
+                    omniError: errorInfo
+                }, null, 2);
+            } catch (e) {
+                // If debug info is not valid JSON, replace it
+                this.debugInfo.textContent = JSON.stringify({
+                    omniError: errorInfo
+                }, null, 2);
+            }
+        }
+        
+        // Show user-friendly error message
+        const errorMessage = this.getErrorMessage(errorData);
+        this.showIframeError(errorMessage, 'omni');
+    }
+
+    getCurrentParameters() {
+        // Get current form values for debugging
+        try {
+            const params = this.collectParameters();
+            // Don't include secret in debug output
+            const safeParams = { ...params };
+            if (safeParams.secret) {
+                safeParams.secret = '***hidden***';
+            }
+            return safeParams;
+        } catch (e) {
+            return { error: 'Could not collect parameters' };
+        }
+    }
+
+    getErrorSuggestion(errorData) {
+        const errorStr = JSON.stringify(errorData).toLowerCase();
+        
+        if (errorStr.includes('router') || errorStr.includes('route')) {
+            return 'Check that the contentPath is correct and accessible to the user.';
+        }
+        if (errorStr.includes('session') || errorStr.includes('auth')) {
+            return 'Verify the embed secret and user parameters are correct.';
+        }
+        if (errorStr.includes('connection') || errorStr.includes('connectionRoles')) {
+            return 'Check that connectionRoles uses valid connection IDs from your Omni instance.';
+        }
+        if (errorStr.includes('permission') || errorStr.includes('access')) {
+            return 'User may not have access to the requested content. Check user permissions.';
+        }
+        return 'This may be an internal Omni application error. Try opening the URL in a new tab or check your Omni instance status.';
+    }
+
+    getErrorMessage(errorData) {
+        const errorStr = JSON.stringify(errorData).toLowerCase();
+        
+        if (errorStr.includes('router')) {
+            return 'Route Error: The content path may be invalid or the user doesn\'t have access. Check the contentPath parameter.';
+        }
+        if (errorStr.includes('session') || errorStr.includes('auth')) {
+            return 'Authentication Error: Verify your embed secret and user credentials are correct.';
+        }
+        if (errorStr.includes('connection')) {
+            return 'Connection Error: Check that connectionRoles uses valid connection IDs from Omni Settings > Connections.';
+        }
+        
+        return 'Omni Application Error: The embedded application encountered an error. This may be due to invalid parameters, access permissions, or an issue with the Omni instance. Check the Debug Information section for details.';
+    }
+
+    checkForOmniErrors() {
+        // Try to check iframe content for error indicators
+        try {
+            const iframeWindow = this.embedFrame.contentWindow;
+            if (iframeWindow) {
+                // Check if React error boundary caught an error
+                const errorElements = iframeWindow.document?.querySelectorAll('[data-react-error-boundary], .error-boundary, [class*="error"]');
+                if (errorElements && errorElements.length > 0) {
+                    console.warn('⚠️ Potential error indicators found in iframe');
+                    this.handleOmniError({
+                        message: 'Error indicators detected in Omni application',
+                        type: 'react-error-boundary'
+                    });
+                }
+            }
+        } catch (error) {
+            // Cross-origin restrictions prevent access - this is normal
+            // Errors will be caught by other handlers
+        }
     }
 
     checkForReactErrors() {
