@@ -71,11 +71,17 @@ app.get('/proxy/*', async (req, res) => {
         const response = await fetch(omniUrl);
         const content = await response.text();
         
-        // Set headers to allow iframe embedding
+        // Get the current origin to allow iframe embedding
+        const origin = req.get('origin') || req.get('referer') || '';
+        const host = req.get('host') || '';
+        const protocol = req.protocol || 'https';
+        const currentOrigin = origin || `${protocol}://${host}`;
+        
+        // Set headers to allow iframe embedding from current origin
         res.set({
             'Content-Type': response.headers.get('content-type') || 'text/html',
             'X-Frame-Options': 'ALLOWALL',
-            'Content-Security-Policy': "frame-ancestors 'self' http://localhost:* http://127.0.0.1:*"
+            'Content-Security-Policy': `frame-ancestors 'self' ${currentOrigin} http://localhost:* http://127.0.0.1:* https://*`
         });
         
         res.send(content);

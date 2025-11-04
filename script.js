@@ -911,10 +911,6 @@ class OmniEmbedTester {
             console.error('❌ Iframe error event listener fired:', error);
         });
 
-        // Convert Omni URL to use our proxy
-        const proxyUrl = url.replace('https://', '/proxy/');
-        console.log('Using proxy URL for iframe:', proxyUrl);
-        
         // Debug: Log the original URL parameters
         try {
             const urlObj = new URL(url);
@@ -943,8 +939,13 @@ class OmniEmbedTester {
             console.error('❌ Error parsing URL:', error);
         }
         
-        // Try to load the embed with error recovery
-        this.loadIframeWithRetry(proxyUrl, url);
+        // Try loading directly first (since it works in a new tab)
+        // The proxy breaks cookies/sessions, so direct loading is preferred
+        console.log('🔄 Attempting direct iframe load (preferred method)');
+        console.log('📍 Direct URL:', url);
+        
+        // Try direct load first, fallback to proxy if needed
+        this.loadIframeWithRetry(url, url, 0, true);
         
         // Check for iframe loading issues after a short delay
         setTimeout(() => {
@@ -1024,17 +1025,27 @@ class OmniEmbedTester {
         this.showError('Error detected - see details below');
     }
 
-    loadIframeWithRetry(proxyUrl, originalUrl, retryCount = 0) {
+    loadIframeWithRetry(url, originalUrl, retryCount = 0, useDirect = true) {
         const maxRetries = 2;
+        const useProxy = !useDirect || retryCount > 0;
+        const proxyUrl = originalUrl.replace('https://', '/proxy/');
+        const loadUrl = useProxy ? proxyUrl : url;
         
         console.log(`🔄 Loading iframe (attempt ${retryCount + 1}/${maxRetries + 1})`);
+        console.log(`📍 Using ${useProxy ? 'proxy' : 'direct'} URL:`, loadUrl);
         
         // Set up a timeout to detect if the iframe fails to load
         const loadTimeout = setTimeout(() => {
             if (retryCount < maxRetries) {
-                console.log(`⏰ Iframe load timeout, retrying with direct URL...`);
-                this.embedFrame.src = originalUrl;
-                this.loadIframeWithRetry(originalUrl, originalUrl, retryCount + 1);
+                if (useDirect && retryCount === 0) {
+                    // First retry: try proxy instead
+                    console.log(`⏰ Direct load timeout, trying proxy...`);
+                    this.loadIframeWithRetry(proxyUrl, originalUrl, retryCount + 1, false);
+                } else {
+                    // Already tried both, give up
+                    console.log('❌ Iframe failed to load after all attempts');
+                    this.showIframeError('Iframe failed to load after multiple attempts. Try opening the URL in a new tab instead.', 'csp');
+                }
             } else {
                 console.log('❌ Iframe failed to load after all retries');
                 this.showIframeError('Iframe failed to load after multiple attempts. The Omni application may have issues.');
@@ -1044,32 +1055,44 @@ class OmniEmbedTester {
         // Clear timeout when iframe loads successfully
         this.embedFrame.onload = () => {
             clearTimeout(loadTimeout);
-            console.log('✅ Iframe loaded successfully');
+            console.log(`✅ Iframe loaded successfully (${useProxy ? 'via proxy' : 'directly'})`);
             
             // Set up error boundary for React errors
             this.setupIframeErrorBoundary();
             
-                        // Check if the iframe actually loaded content successfully
-                        setTimeout(() => {
-                            try {
-                                const iframeDoc = this.embedFrame.contentDocument || this.embedFrame.contentWindow.document;
-                                if (iframeDoc && iframeDoc.body && iframeDoc.body.innerHTML.trim()) {
-                                    console.log('✅ Iframe content loaded successfully');
-                                    this.showSuccess('🎉 Omni Analytics embedded successfully! You can now test different parameters.');
-                                } else {
-                                    console.log('⚠️ Iframe loaded but content appears empty');
-                                    this.showIframeError('Iframe loaded but content appears empty. This might indicate an error in the Omni application.');
-                                }
-                            } catch (error) {
-                                // Cross-origin restrictions are normal and expected
-                                console.log('✅ Iframe loaded (cross-origin restrictions are normal)');
-                                this.showSuccess('🎉 Omni Analytics embedded successfully! You can now test different parameters.');
-                            }
-                        }, 1000);
+            // Check if the iframe actually loaded content successfully
+            setTimeout(() => {
+                try {
+                    const iframeDoc = this.embedFrame.contentDocument || this.embedFrame.contentWindow.document;
+                    if (iframeDoc && iframeDoc.body && iframeDoc.body.innerHTML.trim()) {
+                        console.log('✅ Iframe content loaded successfully');
+                        this.showSuccess('🎉 Omni Analytics embedded successfully! You can now test different parameters.');
+                    } else {
+                        console.log('⚠️ Iframe loaded but content appears empty');
+                        // Don't show error immediately - might be a timing issue
+                    }
+                } catch (error) {
+                    // Cross-origin restrictions are normal and expected
+                    console.log('✅ Iframe loaded (cross-origin restrictions are normal)');
+                    this.showSuccess('🎉 Omni Analytics embedded successfully! You can now test different parameters.');
+                }
+            }, 1000);
+        };
+        
+        // Handle iframe errors
+        this.embedFrame.onerror = (error) => {
+            clearTimeout(loadTimeout);
+            console.error('❌ Iframe onerror event:', error);
+            if (useDirect && retryCount === 0) {
+                console.log('🔄 Retrying with proxy...');
+                this.loadIframeWithRetry(proxyUrl, originalUrl, retryCount + 1, false);
+            } else {
+                this.showIframeError('Iframe failed to load. This might be due to network issues or Omni server errors.');
+            }
         };
         
         // Set the iframe source
-        this.embedFrame.src = proxyUrl;
+        this.embedFrame.src = loadUrl;
     }
 
     setupIframeErrorBoundary() {
