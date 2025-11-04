@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Test</title>
+</head>
+<body>
+    <h1>Debug Test</h1>
+    <button id="testBtn">Test Button</button>
+    <div id="output"></div>
+
+    <script>
+        console.log('=== DEBUG TEST STARTING ===');
+        
+        // Test 1: Basic JavaScript
+        console.log('Test 1: Basic JavaScript - PASS');
+        
+        // Test 2: DOM access
+        try {
+            const testBtn = document.getElementById('testBtn');
+            console.log('Test 2: DOM access -', testBtn ? 'PASS' : 'FAIL');
+        } catch (e) {
+            console.log('Test 2: DOM access - FAIL', e);
+        }
+        
+        // Test 3: Event listener
+        try {
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('Test 3: DOMContentLoaded event - PASS');
+                
+                const testBtn = document.getElementById('testBtn');
+                if (testBtn) {
+                    testBtn.addEventListener('click', function() {
+                        console.log('Test 4: Click event - PASS');
+                        document.getElementById('output').innerHTML = 'All tests passed! JavaScript is working correctly.';
+                        alert('Success! All JavaScript tests passed.');
+                    });
+                    console.log('Test 5: Event listener added - PASS');
+                } else {
+                    console.log('Test 5: Event listener added - FAIL (button not found)');
+                }
+            });
+            console.log('Test 3: Event listener setup - PASS');
+        } catch (e) {
+            console.log('Test 3: Event listener setup - FAIL', e);
+        }
+        
+        // Test 6: CryptoJS availability
+        try {
+            if (typeof CryptoJS !== 'undefined') {
+                console.log('Test 6: CryptoJS available - PASS');
+            } else {
+                console.log('Test 6: CryptoJS available - FAIL (not loaded)');
+            }
+        } catch (e) {
+            console.log('Test 6: CryptoJS available - FAIL', e);
+        }
+        
+        console.log('=== DEBUG TEST COMPLETE ===');
+    </script>
+    
+    <!-- Try to load CryptoJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script>
+        // Test CryptoJS after loading
+        setTimeout(function() {
+            try {
+                if (typeof CryptoJS !== 'undefined') {
+                    console.log('CryptoJS loaded successfully');
+                } else {
+                    console.log('CryptoJS failed to load');
+                }
+            } catch (e) {
+                console.log('CryptoJS error:', e);
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

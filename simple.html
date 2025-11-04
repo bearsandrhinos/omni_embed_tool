@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Omni Embed Tester - Simple Version</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .form-group { margin: 10px 0; }
+        input, select, textarea { width: 300px; padding: 5px; margin: 5px 0; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .output { margin: 20px 0; padding: 10px; background: #f8f9fa; border: 1px solid #dee2e6; }
+    </style>
+</head>
+<body>
+    <h1>Omni Embed Tester - Simple Version</h1>
+    
+    <div class="form-group">
+        <label>Hostname:</label><br>
+        <input type="text" id="hostname" value="example.embed-omniapp.co">
+    </div>
+    
+    <div class="form-group">
+        <label>Secret:</label><br>
+        <input type="password" id="secret" placeholder="Your embed secret">
+    </div>
+    
+    <div class="form-group">
+        <label>Content Path:</label><br>
+        <input type="text" id="contentPath" value="/dashboards/12345678">
+    </div>
+    
+    <div class="form-group">
+        <label>External ID:</label><br>
+        <input type="text" id="externalId" value="test-user-001">
+    </div>
+    
+    <div class="form-group">
+        <label>Name:</label><br>
+        <input type="text" id="name" value="Test User">
+    </div>
+    
+    <button id="generateBtn">Generate URL</button>
+    <button id="testBtn">Test Button</button>
+    
+    <div class="output">
+        <h3>Generated URL:</h3>
+        <textarea id="output" rows="5" cols="80" readonly></textarea>
+    </div>
+
+    <script>
+        console.log('Simple script starting...');
+        
+        function generateNonce() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let result = '';
+            for (let i = 0; i < 32; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+        
+        function createHmacSignature(data, secret) {
+            // Simple base64 encoding for testing (not secure, just for testing)
+            return btoa(data + secret).substring(0, 32);
+        }
+        
+        function generateUrl() {
+            console.log('Generate URL clicked');
+            
+            const hostname = document.getElementById('hostname').value;
+            const secret = document.getElementById('secret').value;
+            const contentPath = document.getElementById('contentPath').value;
+            const externalId = document.getElementById('externalId').value;
+            const name = document.getElementById('name').value;
+            
+            if (!hostname || !secret || !contentPath || !externalId || !name) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            const nonce = generateNonce();
+            const baseUrl = `https://${hostname}/embed/login`;
+            
+            // Create URL parameters
+            const params = new URLSearchParams();
+            params.set('contentPath', contentPath);
+            params.set('externalId', externalId);
+            params.set('name', name);
+            params.set('nonce', nonce);
+            
+            // Create signature (simplified for testing)
+            const signatureData = `${baseUrl}\n${contentPath}\n${externalId}\n${name}\n${nonce}`;
+            const signature = createHmacSignature(signatureData, secret);
+            params.set('signature', signature);
+            
+            const url = `${baseUrl}?${params.toString()}`;
+            
+            document.getElementById('output').value = url;
+            console.log('URL generated:', url);
+        }
+        
+        function testFunction() {
+            console.log('Test button clicked');
+            alert('Test button works! JavaScript is functioning.');
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, setting up event listeners');
+            
+            const generateBtn = document.getElementById('generateBtn');
+            const testBtn = document.getElementById('testBtn');
+            
+            if (generateBtn) {
+                generateBtn.addEventListener('click', generateUrl);
+                console.log('Generate button listener added');
+            } else {
+                console.error('Generate button not found');
+            }
+            
+            if (testBtn) {
+                testBtn.addEventListener('click', testFunction);
+                console.log('Test button listener added');
+            } else {
+                console.error('Test button not found');
+            }
+            
+            console.log('Event listeners set up complete');
+        });
+        
+        console.log('Script loaded');
+    </script>
+</body>
+</html>

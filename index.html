@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Omni Analytics Embed Tester</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔍 Omni Analytics Embed Tester</h1>
+            <p>Test different user configurations and see how they affect the embedded BI experience</p>
+        </header>
+
+        <div class="main-content">
+            <div class="sidebar">
+                <div class="config-section">
+                    <h2>Configuration</h2>
+                    
+                    <div class="form-group">
+                        <label for="hostname">Omni Hostname</label>
+                        <input type="text" id="hostname" placeholder="example.embed-omniapp.co" value="example.embed-omniapp.co">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="secret">Embed Secret</label>
+                        <input type="password" id="secret" placeholder="Your embed secret key">
+                        <div class="help-text">
+                            <small>Get this from <strong>Admin > Embed</strong> in your Omni instance. Click "Reset Secret" to generate a new one.</small>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="apiKey">API Key (for 2-step SSO)</label>
+                        <input type="password" id="apiKey" placeholder="Your API key">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="embedType">Embed Type</label>
+                        <select id="embedType">
+                            <option value="standard">Standard SSO Embed</option>
+                            <option value="2step">2-Step SSO Embed</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="user-section">
+                    <h2>User Parameters</h2>
+                    
+                    <div class="form-group">
+                        <label for="contentPath">Content Path</label>
+                        <input type="text" id="contentPath" placeholder="/dashboards/12345678" value="/dashboards/12345678">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="externalId">External ID</label>
+                        <input type="text" id="externalId" placeholder="user123" value="test-user-001">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="name">Name</label>
+                        <input type="text" id="name" placeholder="John Doe" value="Test User">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" placeholder="user@example.com" value="test@example.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="entity">Entity</label>
+                        <input type="text" id="entity" placeholder="Acme Corp" value="Test Company">
+                    </div>
+                </div>
+
+                <div class="advanced-section">
+                    <h2>Advanced Parameters</h2>
+                    
+                    <div class="form-group">
+                        <label for="mode">Mode</label>
+                        <select id="mode">
+                            <option value="APPLICATION" selected>Application</option>
+                            <option value="SINGLE_CONTENT">Single Content</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="theme">Theme</label>
+                        <select id="theme">
+                            <option value="">Default</option>
+                            <option value="vibes">Vibes</option>
+                            <option value="minimal">Minimal</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="prefersDark">Prefers Dark Mode</label>
+                        <select id="prefersDark">
+                            <option value="">Auto</option>
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="linkAccess">Link Access</label>
+                        <select id="linkAccess">
+                            <option value="">Default</option>
+                            <option value="__omni_link_access_open">Open</option>
+                            <option value="__omni_link_access_modal">Modal</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="userAttributes">User Attributes (JSON)</label>
+                        <textarea id="userAttributes" placeholder='{"department": "sales", "region": "west"}' rows="3">{"department": "sales", "region": "west", "role": "manager"}</textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="connectionRoles">Connection Roles (JSON)</label>
+                        <textarea id="connectionRoles" placeholder='{"connection-id": "RESTRICTED_QUERIER"}' rows="3">{"YOUR_CONNECTION_ID": "RESTRICTED_QUERIER"}</textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="filterSearchParam">Filter Search Param</label>
+                        <input type="text" id="filterSearchParam" placeholder="f--users.country=USA">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="groups">Groups (JSON)</label>
+                        <textarea id="groups" placeholder='["group1", "group2"]' rows="2">["sales-team", "managers"]</textarea>
+                    </div>
+                </div>
+
+                <div class="preset-section">
+                    <h2>Quick Presets</h2>
+                    <div class="preset-buttons">
+                        <button class="preset-btn" data-preset="basic">Basic User</button>
+                        <button class="preset-btn" data-preset="admin">Admin User</button>
+                        <button class="preset-btn" data-preset="restricted">Restricted User</button>
+                        <button class="preset-btn" data-preset="dark">Dark Theme</button>
+                        <button class="preset-btn" data-preset="workbook">Workbook Mode</button>
+                    </div>
+                </div>
+
+                <div class="action-section">
+                    <button id="generateUrl" class="primary-btn">Generate Embed URL</button>
+                    <button id="clearForm" class="secondary-btn">Clear Form</button>
+                    <button id="testButton" class="secondary-btn" style="background: #e53e3e; color: white;">Test Button</button>
+                </div>
+            </div>
+
+            <div class="content-area">
+                <div class="url-display">
+                    <h2>Generated URL</h2>
+                    <div class="url-container">
+                        <textarea id="generatedUrl" readonly placeholder="Generated URL will appear here..."></textarea>
+                        <button id="copyUrl" class="copy-btn">Copy URL</button>
+                    </div>
+                </div>
+
+                <div class="embed-preview">
+                    <h2>Embed Preview</h2>
+                    <div class="iframe-container">
+                        <iframe id="embedFrame" 
+                                src="about:blank" 
+                                frameborder="0"
+                                sandbox="allow-scripts allow-forms allow-popups allow-top-navigation"
+                                style="width: 100%; height: 600px; border: 1px solid #ddd; border-radius: 8px; background: #f9f9f9;">
+                        </iframe>
+                        <div id="iframeError" class="iframe-error" style="display: none;">
+                            <div class="error-content">
+                                <h3>⚠️ Iframe Blocked by CSP Policy</h3>
+                                <p>The embed URL cannot be displayed in this iframe due to Content Security Policy (CSP) restrictions.</p>
+                                <div class="error-solutions">
+                                    <h4>Issue:</h4>
+                                    <p>Omni's server only allows iframe embedding from <code>http://localhost</code> (without port). Make sure you're accessing the app at <code>http://localhost</code> (not <code>http://localhost:8080</code>).</p>
+                                <h4>Solutions:</h4>
+                                <ul>
+                                    <li><strong>Open in New Tab:</strong> Click the button below to open the embed in a new browser tab</li>
+                                    <li><strong>Copy URL:</strong> Use the copy button to test the URL in your own environment</li>
+                                    <li><strong>Check URL:</strong> Make sure you're accessing <code>http://localhost</code> (not <code>http://localhost:8080</code>)</li>
+                                    <li><strong>Restart Server:</strong> Use <code>sudo npm run dev</code> to restart on port 80</li>
+                                    <li><strong>Update CSP:</strong> Ask your Omni administrator to allow your domain</li>
+                                </ul>
+                                <p><strong>Note:</strong> If you see React errors in the console, these are coming from the Omni application itself and may indicate parameter issues or Omni server problems.</p>
+                                </div>
+                                <button id="openInNewTab" class="primary-btn">Open in New Tab</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="embed-controls">
+                        <button id="loadEmbed" class="primary-btn">Load Embed</button>
+                        <button id="refreshEmbed" class="secondary-btn">Refresh</button>
+                    </div>
+                </div>
+
+                <div class="debug-info">
+                    <h2>Debug Information</h2>
+                    <div class="debug-content">
+                        <h3>URL Parameters</h3>
+                        <pre id="urlParams"></pre>
+                        <h3>Signature Data</h3>
+                        <pre id="signatureData"></pre>
+                        <h3>Debug Information</h3>
+                        <pre id="debugInfo"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load the official Omni Embed SDK -->
+    <script type="module">
+        // Try multiple approaches to load the SDK
+        const loadOmniSDK = async () => {
+            const urls = [
+                'https://unpkg.com/@omni-co/embed@0.3.12/dist/index.js',
+                'https://unpkg.com/@omni-co/embed@0.3.12/index.js',
+                'https://unpkg.com/@omni-co/embed@0.3.12/dist/index.umd.js',
+                'https://unpkg.com/@omni-co/embed@0.3.12/index.umd.js',
+                'https://unpkg.com/@omni-co/embed@0.3.12/dist/embedSsoDashboard.js',
+                'https://unpkg.com/@omni-co/embed@0.3.12/embedSsoDashboard.js'
+            ];
+            
+            for (const url of urls) {
+                try {
+                    const module = await import(url);
+                    
+                    // Check for different export patterns
+                    if (module.embedSsoDashboard) {
+                        window.OmniEmbed = { embedSsoDashboard: module.embedSsoDashboard };
+                        console.log('✅ Omni SDK loaded successfully as ES module');
+                        return;
+                    } else if (module.default && module.default.embedSsoDashboard) {
+                        window.OmniEmbed = { embedSsoDashboard: module.default.embedSsoDashboard };
+                        console.log('✅ Omni SDK loaded successfully as ES module (default export)');
+                        return;
+                    } else if (module.default) {
+                        window.OmniEmbed = { embedSsoDashboard: module.default };
+                        console.log('✅ Omni SDK loaded successfully as ES module (default)');
+                        return;
+                    }
+                } catch (error) {
+                    // Silently continue to next URL
+                }
+            }
+            
+            // If all ES module attempts fail, try UMD
+            console.log('⚠️ ES module attempts failed, trying UMD...');
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/@omni-co/embed@0.3.12/dist/index.umd.js';
+            script.onload = () => {
+                console.log('✅ Omni SDK loaded successfully as UMD');
+            };
+            script.onerror = () => {
+                console.log('⚠️ UMD loading failed, will use fallback implementation');
+            };
+            document.head.appendChild(script);
+        };
+        
+        loadOmniSDK();
+        
+        // Simple fallback - just set a flag that SDK is not available
+        setTimeout(() => {
+            if (!window.OmniEmbed) {
+                console.log('🔄 Omni SDK not available, using custom implementation');
+                window.OmniEmbed = null; // Mark as unavailable
+            }
+        }, 2000);
+    </script>
+    <script>
+        // Debug what's available after SDK loads
+        console.log('🔍 Checking for Omni SDK...');
+        console.log('window.OmniEmbed:', typeof window.OmniEmbed);
+        
+        // Check if the SDK loaded with a different name
+        if (typeof window.OmniEmbed === 'undefined') {
+            console.log('⚠️ OmniEmbed not found, checking for other possible names...');
+            
+            // Check for common UMD export patterns
+            const possibleNames = ['OmniEmbed', 'omniEmbed', 'Omni', 'omni', 'embedSsoDashboard', 'embedSso'];
+            for (const name of possibleNames) {
+                if (typeof window[name] !== 'undefined') {
+                    console.log(`✅ Found potential SDK as window.${name}:`, window[name]);
+                }
+            }
+        }
+    </script>
+    <script src="script.js"></script>
+    <script>
+        // Wait for Omni SDK to load, then initialize the app
+        function waitForOmniSDK() {
+            // Check multiple possible SDK names
+            const sdkNames = ['OmniEmbed', 'omniEmbed', 'Omni', 'omni'];
+            let sdkFound = null;
+            
+            for (const name of sdkNames) {
+                if (typeof window[name] !== 'undefined') {
+                    sdkFound = name;
+                    console.log(`Found Omni SDK as window.${name}`);
+                    break;
+                }
+            }
+            
+            if (sdkFound) {
+                console.log('Omni Embed SDK loaded successfully as:', sdkFound);
+                // Store the SDK reference
+                window.OmniEmbed = window[sdkFound];
+                // Initialize the app after SDK is loaded
+                try {
+                    new OmniEmbedTester();
+                    console.log('App initialized successfully');
+                } catch (error) {
+                    console.error('Failed to initialize app:', error);
+                }
+            } else {
+                console.log('Waiting for Omni SDK...');
+                setTimeout(waitForOmniSDK, 100);
+            }
+        }
+        
+        // Start waiting for Omni SDK after a short delay to allow ES module to load
+        setTimeout(waitForOmniSDK, 500);
+        
+        // Fallback: Initialize after 5 seconds even if SDK fails
+        setTimeout(() => {
+            if (typeof window.omniApp === 'undefined') {
+                console.log('Omni SDK timeout, initializing with fallback');
+                try {
+                    new OmniEmbedTester();
+                    console.log('App initialized with fallback');
+                } catch (error) {
+                    console.error('Fallback initialization failed:', error);
+                }
+            }
+        }, 5000);
+
+        // Hot reload support - check for file changes every 2 seconds in development
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            let lastModified = null;
+            
+            function checkForUpdates() {
+                fetch('/api/check-updates')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (lastModified && data.lastModified !== lastModified) {
+                            console.log('🔄 Files changed, reloading...');
+                            window.location.reload();
+                        }
+                        lastModified = data.lastModified;
+                    })
+                    .catch(() => {
+                        // Ignore errors, just retry later
+                    });
+            }
+            
+            // Check for updates every 2 seconds
+            setInterval(checkForUpdates, 2000);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Test</title>
+</head>
+<body>
+    <h1>JavaScript Test</h1>
+    <button id="testBtn">Test Button</button>
+    <div id="output"></div>
+
+    <script>
+        console.log('Script starting...');
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded');
+            
+            const testBtn = document.getElementById('testBtn');
+            if (testBtn) {
+                console.log('Button found');
+                testBtn.addEventListener('click', function() {
+                    console.log('Button clicked!');
+                    document.getElementById('output').innerHTML = 'Button works! JavaScript is functioning.';
+                    alert('Success! JavaScript is working.');
+                });
+                console.log('Event listener added');
+            } else {
+                console.error('Button not found!');
+            }
+        });
+        
+        console.log('Script loaded');
+    </script>
+</body>
+</html>
