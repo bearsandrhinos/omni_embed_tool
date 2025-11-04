@@ -877,7 +877,9 @@ class OmniEmbedTester {
             return;
         }
 
-        console.log('🔄 Loading embed with URL:', url);
+        console.log('🔄 ===== LOADING EMBED =====');
+        console.log('🔄 URL:', url);
+        console.log('🔄 Current origin:', window.location.origin);
         console.log('🌐 Current browser:', navigator.userAgent);
         console.log('🍪 Cookies enabled:', navigator.cookieEnabled);
         console.log('🔒 Secure context:', window.isSecureContext);
@@ -950,6 +952,8 @@ class OmniEmbedTester {
             // On production, use proxy directly since Omni likely blocks iframe embedding
             console.log('🌐 Production domain detected, using proxy method');
             const proxyUrl = url.replace('https://', '/proxy/');
+            console.log('🌐 Proxy URL:', proxyUrl);
+            console.log('🌐 This will rewrite all URLs in the Omni content to go through the proxy');
             this.loadIframeWithRetry(proxyUrl, url, 0, false);
         } else {
             // On localhost, try direct first, then proxy
