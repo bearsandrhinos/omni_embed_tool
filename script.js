@@ -77,28 +77,64 @@ class OmniEmbedTester {
     bindEvents() {
         console.log('Binding events...');
         
+        // Check for required elements before binding
+        if (!this.generateUrlBtn) {
+            console.error('❌ Generate URL button not found! Cannot bind events.');
+            return;
+        }
+        
         this.generateUrlBtn.addEventListener('click', (e) => {
-            console.log('Generate URL button clicked via event listener');
+            console.log('✅ Generate URL button clicked via event listener');
             e.preventDefault();
-            this.generateUrl();
+            e.stopPropagation();
+            try {
+                this.generateUrl();
+            } catch (error) {
+                console.error('Error in generateUrl:', error);
+                this.showError('Failed to generate URL: ' + error.message);
+            }
         });
         
-        this.clearFormBtn.addEventListener('click', () => this.clearForm());
-        this.copyUrlBtn.addEventListener('click', () => this.copyUrl());
-        this.loadEmbedBtn.addEventListener('click', () => this.loadEmbed());
-        this.refreshEmbedBtn.addEventListener('click', () => this.refreshEmbed());
-        this.openInNewTabBtn.addEventListener('click', () => this.openInNewTab());
-        this.testButton.addEventListener('click', () => this.testFunction());
+        if (this.clearFormBtn) {
+            this.clearFormBtn.addEventListener('click', () => this.clearForm());
+        }
+        if (this.copyUrlBtn) {
+            this.copyUrlBtn.addEventListener('click', () => this.copyUrl());
+        }
+        if (this.loadEmbedBtn) {
+            this.loadEmbedBtn.addEventListener('click', () => this.loadEmbed());
+        }
+        if (this.refreshEmbedBtn) {
+            this.refreshEmbedBtn.addEventListener('click', () => this.refreshEmbed());
+        }
+        if (this.openInNewTabBtn) {
+            this.openInNewTabBtn.addEventListener('click', () => this.openInNewTab());
+        }
+        if (this.testButton) {
+            this.testButton.addEventListener('click', () => this.testFunction());
+        }
 
         // Preset buttons
         document.querySelectorAll('.preset-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => this.loadPreset(e.target.dataset.preset));
+            btn.addEventListener('click', (e) => {
+                const preset = e.target.dataset.preset || e.target.closest('.preset-btn')?.dataset.preset;
+                if (preset) {
+                    this.loadPreset(preset);
+                }
+            });
         });
 
         // Auto-generate URL when embed type changes
-        this.embedType.addEventListener('change', () => this.generateUrl());
+        if (this.embedType) {
+            this.embedType.addEventListener('change', () => {
+                // Only auto-generate if form is already filled
+                if (this.hostname?.value && this.secret?.value) {
+                    this.generateUrl();
+                }
+            });
+        }
         
-        console.log('Events bound successfully');
+        console.log('✅ Events bound successfully');
     }
 
     loadPresets() {
@@ -217,7 +253,15 @@ class OmniEmbedTester {
     }
 
     async generateUrl() {
-        console.log('Generate URL button clicked');
+        console.log('🔵 generateUrl() called');
+        console.log('🔵 this.generateUrlBtn:', this.generateUrlBtn);
+        console.log('🔵 Current parameters:', {
+            hostname: this.hostname?.value,
+            hasSecret: !!this.secret?.value,
+            contentPath: this.contentPath?.value,
+            externalId: this.externalId?.value,
+            name: this.name?.value
+        });
         
         try {
             console.log('Collecting parameters...');

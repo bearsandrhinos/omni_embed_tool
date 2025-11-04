@@ -290,7 +290,42 @@
     </script>
     <script src="script.js"></script>
     <script>
-        // Wait for Omni SDK to load, then initialize the app
+        // Initialize the app immediately - don't wait for Omni SDK
+        // The SDK is optional and only needed for certain features
+        (function() {
+            console.log('🚀 Initializing OmniEmbedTester app...');
+            console.log('🚀 Script.js loaded:', typeof OmniEmbedTester !== 'undefined');
+            console.log('🚀 DOM ready:', document.readyState);
+            
+            // Wait for DOM to be fully ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initializeApp);
+            } else {
+                initializeApp();
+            }
+            
+            function initializeApp() {
+                try {
+                    if (typeof window.omniApp === 'undefined') {
+                        if (typeof OmniEmbedTester === 'undefined') {
+                            console.error('❌ OmniEmbedTester class not found!');
+                            alert('Error: OmniEmbedTester class not found. Please check that script.js is loaded correctly.');
+                            return;
+                        }
+                        window.omniApp = new OmniEmbedTester();
+                        console.log('✅ App initialized successfully');
+                    } else {
+                        console.log('App already initialized');
+                    }
+                } catch (error) {
+                    console.error('❌ Failed to initialize app:', error);
+                    console.error('Error stack:', error.stack);
+                    alert('Failed to initialize app: ' + error.message + '\n\nPlease check the console for details.');
+                }
+            }
+        })();
+        
+        // Also try to load Omni SDK in the background (optional)
         function waitForOmniSDK() {
             // Check multiple possible SDK names
             const sdkNames = ['OmniEmbed', 'omniEmbed', 'Omni', 'omni'];
@@ -308,34 +343,14 @@
                 console.log('Omni Embed SDK loaded successfully as:', sdkFound);
                 // Store the SDK reference
                 window.OmniEmbed = window[sdkFound];
-                // Initialize the app after SDK is loaded
-                try {
-                    new OmniEmbedTester();
-                    console.log('App initialized successfully');
-                } catch (error) {
-                    console.error('Failed to initialize app:', error);
-                }
             } else {
-                console.log('Waiting for Omni SDK...');
+                console.log('Waiting for Omni SDK... (this is optional)');
                 setTimeout(waitForOmniSDK, 100);
             }
         }
         
-        // Start waiting for Omni SDK after a short delay to allow ES module to load
+        // Try to load SDK in background (non-blocking)
         setTimeout(waitForOmniSDK, 500);
-        
-        // Fallback: Initialize after 5 seconds even if SDK fails
-        setTimeout(() => {
-            if (typeof window.omniApp === 'undefined') {
-                console.log('Omni SDK timeout, initializing with fallback');
-                try {
-                    new OmniEmbedTester();
-                    console.log('App initialized with fallback');
-                } catch (error) {
-                    console.error('Fallback initialization failed:', error);
-                }
-            }
-        }, 5000);
 
         // Hot reload support - check for file changes every 2 seconds in development
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
