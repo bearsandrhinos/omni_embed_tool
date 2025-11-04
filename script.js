@@ -385,51 +385,53 @@ class OmniEmbedTester {
             secret: params.secret
         };
 
-        // Add optional parameters
-        if (params.email) requestBody.email = params.email;
-        if (params.entity) requestBody.entity = params.entity;
-        if (params.mode) requestBody.mode = params.mode;
-        if (params.theme) requestBody.theme = params.theme;
-        if (params.prefersDark) requestBody.prefersDark = params.prefersDark;
-        if (params.linkAccess) requestBody.linkAccess = params.linkAccess;
-        if (params.filterSearchParam) requestBody.filterSearchParam = params.filterSearchParam;
+        // Add optional parameters (only if they have values)
+        if (params.email && params.email.trim()) requestBody.email = params.email.trim();
+        if (params.entity && params.entity.trim()) requestBody.entity = params.entity.trim();
+        if (params.mode && params.mode.trim()) requestBody.mode = params.mode.trim();
+        if (params.theme && params.theme.trim()) requestBody.theme = params.theme.trim();
+        if (params.prefersDark && params.prefersDark.trim()) requestBody.prefersDark = params.prefersDark.trim();
+        if (params.linkAccess && params.linkAccess.trim()) requestBody.linkAccess = params.linkAccess.trim();
+        if (params.filterSearchParam && params.filterSearchParam.trim()) requestBody.filterSearchParam = params.filterSearchParam.trim();
         
-        // JSON parameters need to be URL encoded
+        // JSON parameters should be sent as JSON objects (not URL-encoded strings)
+        // URL encoding is only needed when these appear in URL query parameters
         if (params.userAttributes && typeof params.userAttributes === 'string' && params.userAttributes.trim()) {
             try {
                 const userAttributesObj = JSON.parse(params.userAttributes);
-                requestBody.userAttributes = encodeURIComponent(JSON.stringify(userAttributesObj));
+                requestBody.userAttributes = userAttributesObj; // Send as object, not URL-encoded
             } catch (error) {
                 console.warn('Invalid userAttributes JSON, skipping:', error.message);
             }
         } else if (params.userAttributes && typeof params.userAttributes === 'object') {
-            requestBody.userAttributes = encodeURIComponent(JSON.stringify(params.userAttributes));
+            requestBody.userAttributes = params.userAttributes; // Send as object
         }
         
         if (params.connectionRoles && typeof params.connectionRoles === 'string' && params.connectionRoles.trim()) {
             try {
                 const connectionRolesObj = JSON.parse(params.connectionRoles);
-                requestBody.connectionRoles = encodeURIComponent(JSON.stringify(connectionRolesObj));
+                requestBody.connectionRoles = connectionRolesObj; // Send as object, not URL-encoded
             } catch (error) {
                 console.warn('Invalid connectionRoles JSON, skipping:', error.message);
             }
         } else if (params.connectionRoles && typeof params.connectionRoles === 'object') {
-            requestBody.connectionRoles = encodeURIComponent(JSON.stringify(params.connectionRoles));
+            requestBody.connectionRoles = params.connectionRoles; // Send as object
         }
         
         if (params.groups && typeof params.groups === 'string' && params.groups.trim()) {
             try {
                 const groupsArray = JSON.parse(params.groups);
-                requestBody.groups = encodeURIComponent(JSON.stringify(groupsArray));
+                requestBody.groups = groupsArray; // Send as array, not URL-encoded
             } catch (error) {
                 console.warn('Invalid groups JSON, skipping:', error.message);
             }
         } else if (params.groups && Array.isArray(params.groups)) {
-            requestBody.groups = encodeURIComponent(JSON.stringify(params.groups));
+            requestBody.groups = params.groups; // Send as array
         }
 
         console.log('Proxy Request URL:', proxyUrl);
-        console.log('Proxy Request Body:', requestBody);
+        console.log('Proxy Request Body:', JSON.stringify(requestBody, null, 2));
+        console.log('Request body keys:', Object.keys(requestBody));
 
         try {
             const response = await fetch(proxyUrl, {
@@ -441,15 +443,45 @@ class OmniEmbedTester {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorData.details || errorData.error}`);
+                const errorText = await response.text();
+                let errorData;
+                try {
+                    errorData = JSON.parse(errorText);
+                } catch (e) {
+                    errorData = { error: errorText, raw: errorText };
+                }
+                
+                console.error('❌ API Error Response:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    error: errorData
+                });
+                
+                // Check for signature-related errors
+                if (errorText.includes('signature') || errorText.includes('Signature')) {
+                    throw new Error(`Signature mismatch: ${errorData.error || errorData.details || errorText}. This usually means the parameters sent to Omni's API don't match what's expected. Check that all required parameters are correct and JSON parameters are properly formatted.`);
+                }
+                
+                throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorData.details || errorData.error || errorText}`);
             }
 
             const result = await response.json();
-            console.log('API Response:', result);
+            console.log('✅ API Response:', result);
             
             if (result.url) {
                 console.log('✅ Generated URL via Omni API:', result.url);
+                
+                // Log the URL parameters for debugging
+                try {
+                    const urlObj = new URL(result.url);
+                    console.log('🔍 Generated URL parameters:');
+                    urlObj.searchParams.forEach((value, key) => {
+                        console.log(`  ${key}: ${value.substring(0, 50)}${value.length > 50 ? '...' : ''}`);
+                    });
+                } catch (e) {
+                    console.warn('Could not parse generated URL:', e);
+                }
+                
                 return result.url;
             } else {
                 throw new Error('API response did not contain a URL');
