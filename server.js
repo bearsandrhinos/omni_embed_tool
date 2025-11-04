@@ -67,26 +67,59 @@ function rewriteUrls(content, omniHostname, basePath) {
     // Extract the Omni hostname from the URL
     // omniHostname will be like "peter.embed-omniapp.co"
     
-    // Rewrite absolute URLs to Omni domain
-    const omniDomainRegex = new RegExp(`https?://${omniHostname.replace(/\./g, '\\.')}`, 'gi');
-    content = content.replace(omniDomainRegex, `/proxy/${omniHostname}`);
+    // Rewrite absolute URLs to Omni domain (most common case)
+    const omniDomainRegex = new RegExp(`https?://${omniHostname.replace(/\./g, '\\.')}(/[^"\'\\s>]*)?`, 'gi');
+    content = content.replace(omniDomainRegex, (match) => {
+        try {
+            const url = match;
+            const urlObj = new URL(url);
+            return `/proxy/${omniHostname}${urlObj.pathname || '/'}${urlObj.search}${urlObj.hash}`;
+        } catch (e) {
+            // If URL parsing fails, just rewrite the domain part
+            return match.replace(new RegExp(`https?://${omniHostname.replace(/\./g, '\\.')}`, 'i'), `/proxy/${omniHostname}`);
+        }
+    });
     
-    // Rewrite relative URLs that start with / (but not //)
-    // These need to be relative to the proxy path
-    content = content.replace(/(href|src|action|data-src|data-href)=["'](\/[^\/"'])/gi, (match, attr, url) => {
+    // Rewrite relative URLs in HTML attributes (href, src, action, etc.)
+    content = content.replace(/(href|src|action|data-src|data-href|data-url|url|background|background-image)\s*=\s*["'](\/[^"']*)["']/gi, (match, attr, url) => {
         // If it's already a proxy path, leave it
         if (url.startsWith('/proxy/')) return match;
+        // Skip if it's a protocol-relative URL (//)
+        if (url.startsWith('//')) return match;
         // Otherwise, prepend the base path
         return `${attr}="${basePath}${url}"`;
     });
     
-    // Rewrite fetch/XMLHttpRequest URLs in JavaScript
+    // Rewrite URLs in CSS (url() functions)
+    content = content.replace(/url\s*\(\s*["']?([^"')]+)["']?\s*\)/gi, (match, url) => {
+        url = url.trim();
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+            if (url.includes(omniHostname)) {
+                try {
+                    const urlObj = new URL(url);
+                    return `url("/proxy/${omniHostname}${urlObj.pathname}${urlObj.search}")`;
+                } catch (e) {
+                    return match;
+                }
+            }
+        } else if (url.startsWith('/') && !url.startsWith('/proxy/')) {
+            return `url("${basePath}${url}")`;
+        }
+        return match;
+    });
+    
+    // Rewrite fetch() calls in JavaScript
     content = content.replace(/fetch\s*\(\s*["']([^"']+)["']/gi, (match, url) => {
         if (url.startsWith('http://') || url.startsWith('https://')) {
             if (url.includes(omniHostname)) {
-                return `fetch("/proxy/${omniHostname}${new URL(url).pathname}${new URL(url).search}")`;
+                try {
+                    const urlObj = new URL(url);
+                    return `fetch("/proxy/${omniHostname}${urlObj.pathname}${urlObj.search}${urlObj.hash}")`;
+                } catch (e) {
+                    return match;
+                }
             }
-        } else if (url.startsWith('/')) {
+        } else if (url.startsWith('/') && !url.startsWith('/proxy/')) {
             return `fetch("${basePath}${url}")`;
         }
         return match;
@@ -95,10 +128,32 @@ function rewriteUrls(content, omniHostname, basePath) {
     // Rewrite XMLHttpRequest open URLs
     content = content.replace(/\.open\s*\(\s*["'][^"']+["']\s*,\s*["']([^"']+)["']/gi, (match, url) => {
         if (url.includes(omniHostname)) {
-            const urlObj = new URL(url.startsWith('http') ? url : `https://${omniHostname}${url}`);
-            return match.replace(url, `/proxy/${omniHostname}${urlObj.pathname}${urlObj.search}`);
-        } else if (url.startsWith('/')) {
+            try {
+                const fullUrl = url.startsWith('http') ? url : `https://${omniHostname}${url}`;
+                const urlObj = new URL(fullUrl);
+                return match.replace(url, `/proxy/${omniHostname}${urlObj.pathname}${urlObj.search}${urlObj.hash}`);
+            } catch (e) {
+                return match;
+            }
+        } else if (url.startsWith('/') && !url.startsWith('/proxy/')) {
             return match.replace(url, `${basePath}${url}`);
+        }
+        return match;
+    });
+    
+    // Rewrite base tag href
+    content = content.replace(/<base\s+[^>]*href\s*=\s*["']([^"']+)["']/gi, (match, url) => {
+        if (url.includes(omniHostname) || url.startsWith('/')) {
+            if (url.startsWith('http://') || url.startsWith('https://')) {
+                try {
+                    const urlObj = new URL(url);
+                    return match.replace(url, `/proxy/${omniHostname}${urlObj.pathname}`);
+                } catch (e) {
+                    return match;
+                }
+            } else if (url.startsWith('/') && !url.startsWith('/proxy/')) {
+                return match.replace(url, `${basePath}${url}`);
+            }
         }
         return match;
     });
