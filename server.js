@@ -90,6 +90,26 @@ function rewriteUrls(content, omniHostname, basePath) {
         return `${attr}="${basePath}${url}"`;
     });
     
+    // Rewrite link tags with rel="stylesheet" - these are critical for CSS
+    content = content.replace(/<link([^>]*)\s+href\s*=\s*["']([^"']+)["']([^>]*)>/gi, (match, before, href, after) => {
+        // Check if it's a stylesheet link
+        if (match.includes('stylesheet') || match.includes('text/css')) {
+            if (href.startsWith('http://') || href.startsWith('https://')) {
+                if (href.includes(omniHostname)) {
+                    try {
+                        const urlObj = new URL(href);
+                        return `<link${before} href="/proxy/${omniHostname}${urlObj.pathname}${urlObj.search}"${after}>`;
+                    } catch (e) {
+                        return match;
+                    }
+                }
+            } else if (href.startsWith('/') && !href.startsWith('/proxy/')) {
+                return `<link${before} href="${basePath}${href}"${after}>`;
+            }
+        }
+        return match;
+    });
+    
     // Rewrite URLs in CSS (url() functions)
     content = content.replace(/url\s*\(\s*["']?([^"')]+)["']?\s*\)/gi, (match, url) => {
         url = url.trim();
@@ -104,6 +124,23 @@ function rewriteUrls(content, omniHostname, basePath) {
             }
         } else if (url.startsWith('/') && !url.startsWith('/proxy/')) {
             return `url("${basePath}${url}")`;
+        }
+        return match;
+    });
+    
+    // Rewrite CSS @import statements
+    content = content.replace(/@import\s+["']([^"']+)["']/gi, (match, url) => {
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+            if (url.includes(omniHostname)) {
+                try {
+                    const urlObj = new URL(url);
+                    return `@import "/proxy/${omniHostname}${urlObj.pathname}${urlObj.search}"`;
+                } catch (e) {
+                    return match;
+                }
+            }
+        } else if (url.startsWith('/') && !url.startsWith('/proxy/')) {
+            return `@import "${basePath}${url}"`;
         }
         return match;
     });
@@ -200,7 +237,8 @@ app.get('/proxy/*', async (req, res) => {
         const isText = contentType.includes('text/') || 
                       contentType.includes('application/javascript') ||
                       contentType.includes('application/json') ||
-                      contentType.includes('application/xml');
+                      contentType.includes('application/xml') ||
+                      contentType.includes('text/css');
         
         let content;
         if (isText) {
@@ -231,8 +269,14 @@ app.get('/proxy/*', async (req, res) => {
                 .replace(/<meta[^>]*http-equiv=["']Content-Security-Policy["'][^>]*>/gi, '')
                 .replace(/content-security-policy[^>]*>/gi, '');
             
-            // Rewrite all URLs to go through proxy
-            modifiedContent = rewriteUrls(modifiedContent, omniHostname, basePath);
+            // For CSS files, rewrite URLs within the CSS
+            if (contentType.includes('text/css')) {
+                // Rewrite URLs in CSS (imports, url() functions, etc.)
+                modifiedContent = rewriteUrls(modifiedContent, omniHostname, basePath);
+            } else {
+                // For HTML/JS, rewrite all URLs
+                modifiedContent = rewriteUrls(modifiedContent, omniHostname, basePath);
+            }
         }
         
         // Set headers to allow iframe embedding from current origin
@@ -240,7 +284,7 @@ app.get('/proxy/*', async (req, res) => {
         res.set({
             'Content-Type': contentType,
             'X-Frame-Options': 'ALLOWALL',
-            'Content-Security-Policy': `frame-ancestors 'self' ${currentOrigin} http://localhost:* http://127.0.0.1:* https://*; default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ${currentOrigin} /proxy/; script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ${currentOrigin} /proxy/; style-src 'self' 'unsafe-inline' data: blob: ${currentOrigin} /proxy/; img-src 'self' data: blob: ${currentOrigin} /proxy/ https:; font-src 'self' data: blob: ${currentOrigin} /proxy/; connect-src 'self' ${currentOrigin} /proxy/ https: http: wss: ws:;`,
+            'Content-Security-Policy': `frame-ancestors 'self' ${currentOrigin} http://localhost:* http://127.0.0.1:* https://*; default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ${currentOrigin} /proxy/ https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ${currentOrigin} /proxy/ https:; style-src 'self' 'unsafe-inline' 'unsafe-hashes' data: blob: ${currentOrigin} /proxy/ https:; img-src 'self' data: blob: ${currentOrigin} /proxy/ https:; font-src 'self' data: blob: ${currentOrigin} /proxy/ https:; connect-src 'self' ${currentOrigin} /proxy/ https: http: wss: ws:;`,
             'X-Content-Type-Options': 'nosniff',
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
