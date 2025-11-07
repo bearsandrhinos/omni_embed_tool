@@ -229,16 +229,32 @@ app.get('/proxy/*', async (req, res) => {
         const cookieHeader = req.headers.cookie || '';
         
         // Forward other important headers
+        // Forward Accept headers as-is to preserve what the browser requested
+        const acceptHeader = req.get('accept') || '*/*';
         const headers = {
             'User-Agent': req.get('user-agent') || 'Mozilla/5.0',
-            'Accept': req.get('accept') || '*/*',
+            'Accept': acceptHeader,
             'Accept-Language': req.get('accept-language') || 'en-US,en;q=0.9',
-            'Referer': omniUrl, // Set referer to the Omni domain
+            'Referer': `https://${omniHostname}${new URL(omniUrl).pathname}`, // Set referer to the Omni domain
             'Origin': `https://${omniHostname}`, // Set origin to Omni domain
+            'Accept-Encoding': req.get('accept-encoding') || 'gzip, deflate, br',
         };
+        
+        // Forward additional headers that might be needed
+        if (req.get('x-requested-with')) {
+            headers['X-Requested-With'] = req.get('x-requested-with');
+        }
+        if (req.get('content-type')) {
+            headers['Content-Type'] = req.get('content-type');
+        }
         
         if (cookieHeader) {
             headers['Cookie'] = cookieHeader;
+        }
+        
+        // Log if this is a Remix data route request
+        if (omniUrl.includes('_data=')) {
+            console.log('📡 Remix data route detected:', omniUrl);
         }
         
         // Fetch with redirect following
