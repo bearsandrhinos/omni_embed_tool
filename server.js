@@ -298,11 +298,17 @@ app.get('/proxy/*', async (req, res) => {
                     // Remove any existing base tags first
                     modifiedContent = modifiedContent.replace(/<base[^>]*>/gi, '');
                     
+                    // Calculate the correct base path - should be the directory of the current page
+                    // If URL is /proxy/hostname/path/to/page, base should be /proxy/hostname/path/to/
+                    const urlPath = new URL(omniUrl).pathname;
+                    const urlDir = urlPath.substring(0, urlPath.lastIndexOf('/') + 1);
+                    const correctBasePath = `${basePath}${urlDir}`;
+                    
                     // Insert base tag right after <head> to help with relative URLs
                     if (modifiedContent.includes('<head>')) {
-                        modifiedContent = modifiedContent.replace('<head>', `<head><base href="${basePath}/">`);
+                        modifiedContent = modifiedContent.replace('<head>', `<head><base href="${correctBasePath}">`);
                     } else if (modifiedContent.includes('<html>')) {
-                        modifiedContent = modifiedContent.replace('<html>', `<html><head><base href="${basePath}/"></head>`);
+                        modifiedContent = modifiedContent.replace('<html>', `<html><head><base href="${correctBasePath}"></head>`);
                     }
                 }
             }
