@@ -1379,37 +1379,24 @@ class OmniEmbedTester {
     testFunction() {
         console.log('Test button clicked!');
         
-        // Test with the official Omni SDK
-        if (typeof window.OmniEmbed === 'undefined') {
-            alert('Omni SDK not loaded! Check console for details.');
-            console.error('Omni Embed SDK not available');
-            return;
-        }
+        // We use the API method instead of the SDK
+        console.log('ℹ️ This app uses Omni\'s API method (/embed/sso/generate-url) instead of the SDK');
+        console.log('ℹ️ The API method is more reliable and doesn\'t require loading external scripts');
         
-        // Test SDK with known values
+        // Test the API method instead
         const testParams = {
-            contentId: '12345678',
-            externalId: 'test-user-001',
-            name: 'Test User',
-            organizationName: 'example',
-            secret: 'test-secret-key-32-chars-long-12345',
-            email: 'test@example.com',
-            theme: 'vibes'
+            hostname: this.hostname?.value || 'example.embed-omniapp.co',
+            contentPath: this.contentPath?.value || '/dashboards/12345678',
+            externalId: this.externalId?.value || 'test-user-001',
+            name: this.name?.value || 'Test User',
+            secret: this.secret?.value || 'test-secret-key-32-chars-long-12345',
+            email: this.email?.value || 'test@example.com'
         };
         
-        console.log('=== TESTING OMNISDK ===');
-        console.log('Test parameters:', testParams);
+        console.log('=== TESTING API METHOD ===');
+        console.log('Test parameters:', { ...testParams, secret: '***hidden***' });
         
-        try {
-            const testUrl = window.OmniEmbed.embedSsoDashboard(testParams);
-            console.log('Test URL generated:', testUrl);
-            alert('SDK test completed! Check console for details.');
-        } catch (error) {
-            console.error('SDK test failed:', error);
-            alert('SDK test failed! Check console for errors.');
-        }
-        
-        this.showSuccess('SDK test completed! Check console for details.');
+        this.showSuccess('API method is being used. Click "Generate Embed URL" to test it!');
     }
 
     showNotification(message, type) {

@@ -211,83 +211,7 @@
         </div>
     </div>
 
-    <!-- Load the official Omni Embed SDK -->
-    <script type="module">
-        // Try multiple approaches to load the SDK
-        const loadOmniSDK = async () => {
-            const urls = [
-                'https://unpkg.com/@omni-co/embed@0.3.12/dist/index.js',
-                'https://unpkg.com/@omni-co/embed@0.3.12/index.js',
-                'https://unpkg.com/@omni-co/embed@0.3.12/dist/index.umd.js',
-                'https://unpkg.com/@omni-co/embed@0.3.12/index.umd.js',
-                'https://unpkg.com/@omni-co/embed@0.3.12/dist/embedSsoDashboard.js',
-                'https://unpkg.com/@omni-co/embed@0.3.12/embedSsoDashboard.js'
-            ];
-            
-            for (const url of urls) {
-                try {
-                    const module = await import(url);
-                    
-                    // Check for different export patterns
-                    if (module.embedSsoDashboard) {
-                        window.OmniEmbed = { embedSsoDashboard: module.embedSsoDashboard };
-                        console.log('✅ Omni SDK loaded successfully as ES module');
-                        return;
-                    } else if (module.default && module.default.embedSsoDashboard) {
-                        window.OmniEmbed = { embedSsoDashboard: module.default.embedSsoDashboard };
-                        console.log('✅ Omni SDK loaded successfully as ES module (default export)');
-                        return;
-                    } else if (module.default) {
-                        window.OmniEmbed = { embedSsoDashboard: module.default };
-                        console.log('✅ Omni SDK loaded successfully as ES module (default)');
-                        return;
-                    }
-                } catch (error) {
-                    // Silently continue to next URL
-                }
-            }
-            
-            // If all ES module attempts fail, try UMD
-            console.log('⚠️ ES module attempts failed, trying UMD...');
-            const script = document.createElement('script');
-            script.src = 'https://unpkg.com/@omni-co/embed@0.3.12/dist/index.umd.js';
-            script.onload = () => {
-                console.log('✅ Omni SDK loaded successfully as UMD');
-            };
-            script.onerror = () => {
-                console.log('⚠️ UMD loading failed, will use fallback implementation');
-            };
-            document.head.appendChild(script);
-        };
-        
-        loadOmniSDK();
-        
-        // Simple fallback - just set a flag that SDK is not available
-        setTimeout(() => {
-            if (!window.OmniEmbed) {
-                console.log('🔄 Omni SDK not available, using custom implementation');
-                window.OmniEmbed = null; // Mark as unavailable
-            }
-        }, 2000);
-    </script>
-    <script>
-        // Debug what's available after SDK loads
-        console.log('🔍 Checking for Omni SDK...');
-        console.log('window.OmniEmbed:', typeof window.OmniEmbed);
-        
-        // Check if the SDK loaded with a different name
-        if (typeof window.OmniEmbed === 'undefined') {
-            console.log('⚠️ OmniEmbed not found, checking for other possible names...');
-            
-            // Check for common UMD export patterns
-            const possibleNames = ['OmniEmbed', 'omniEmbed', 'Omni', 'omni', 'embedSsoDashboard', 'embedSso'];
-            for (const name of possibleNames) {
-                if (typeof window[name] !== 'undefined') {
-                    console.log(`✅ Found potential SDK as window.${name}:`, window[name]);
-                }
-            }
-        }
-    </script>
+    <!-- Note: Omni SDK loading removed - we use the API method instead which doesn't require the SDK -->
     <script src="script.js"></script>
     <script>
         // Initialize the app immediately - don't wait for Omni SDK
@@ -324,33 +248,6 @@
                 }
             }
         })();
-        
-        // Also try to load Omni SDK in the background (optional)
-        function waitForOmniSDK() {
-            // Check multiple possible SDK names
-            const sdkNames = ['OmniEmbed', 'omniEmbed', 'Omni', 'omni'];
-            let sdkFound = null;
-            
-            for (const name of sdkNames) {
-                if (typeof window[name] !== 'undefined') {
-                    sdkFound = name;
-                    console.log(`Found Omni SDK as window.${name}`);
-                    break;
-                }
-            }
-            
-            if (sdkFound) {
-                console.log('Omni Embed SDK loaded successfully as:', sdkFound);
-                // Store the SDK reference
-                window.OmniEmbed = window[sdkFound];
-            } else {
-                console.log('Waiting for Omni SDK... (this is optional)');
-                setTimeout(waitForOmniSDK, 100);
-            }
-        }
-        
-        // Try to load SDK in background (non-blocking)
-        setTimeout(waitForOmniSDK, 500);
 
         // Hot reload support - check for file changes every 2 seconds in development
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
