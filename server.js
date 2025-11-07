@@ -201,13 +201,29 @@ function rewriteUrls(content, omniHostname, basePath) {
 // Proxy endpoint to serve Omni content with correct headers
 app.get('/proxy/*', async (req, res) => {
     try {
-        let omniUrl = req.url.replace('/proxy/', 'https://');
+        // Use originalUrl to get the full path including query string
+        const fullPath = req.originalUrl || req.url;
+        // Remove /proxy/ prefix and add https://
+        let omniUrl = fullPath.replace(/^\/proxy\//, 'https://');
+        
+        // Ensure it starts with https://
+        if (!omniUrl.startsWith('http://') && !omniUrl.startsWith('https://')) {
+            omniUrl = 'https://' + omniUrl;
+        }
+        
         console.log('Proxying request to:', omniUrl);
+        console.log('Original request URL:', req.url);
+        console.log('Original request originalUrl:', req.originalUrl);
         
         // Extract the Omni hostname for URL rewriting
-        const urlMatch = omniUrl.match(/https?:\/\/([^\/]+)/);
+        const urlMatch = omniUrl.match(/https?:\/\/([^\/\?]+)/);
         const omniHostname = urlMatch ? urlMatch[1] : '';
         const basePath = `/proxy/${omniHostname}`;
+        
+        if (!omniHostname) {
+            console.error('Could not extract hostname from URL:', omniUrl);
+            return res.status(400).send('Invalid proxy URL format');
+        }
         
         // Forward cookies from the request
         const cookieHeader = req.headers.cookie || '';
@@ -297,9 +313,39 @@ app.get('/proxy/*', async (req, res) => {
             res.status(response.status).send(content);
         }
     } catch (error) {
-        console.error('Proxy error:', error);
-        console.error('Error details:', error.message, error.stack);
-        res.status(500).send(`Proxy error: ${error.message}`);
+        console.error('❌ Proxy error:', error);
+        console.error('Error details:', error.message);
+        console.error('Error stack:', error.stack);
+        console.error('Request URL:', req.url);
+        console.error('Request originalUrl:', req.originalUrl);
+        
+        // Send a more helpful error message
+        const errorHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Proxy Error</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+                    .error-box { background: white; padding: 20px; border-radius: 8px; border: 2px solid #e53e3e; max-width: 600px; margin: 50px auto; }
+                    h1 { color: #e53e3e; margin-top: 0; }
+                    pre { background: #f7fafc; padding: 10px; border-radius: 4px; overflow-x: auto; }
+                </style>
+            </head>
+            <body>
+                <div class="error-box">
+                    <h1>⚠️ Proxy Error</h1>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <p><strong>Request URL:</strong> ${req.originalUrl || req.url}</p>
+                    <details>
+                        <summary>Technical Details</summary>
+                        <pre>${error.stack}</pre>
+                    </details>
+                </div>
+            </body>
+            </html>
+        `;
+        res.status(500).send(errorHtml);
     }
 });
 
@@ -307,11 +353,22 @@ app.get('/proxy/*', async (req, res) => {
 ['post', 'put', 'delete', 'patch'].forEach(method => {
     app[method]('/proxy/*', async (req, res) => {
         try {
-            let omniUrl = req.url.replace('/proxy/', 'https://');
+            const fullPath = req.originalUrl || req.url;
+            let omniUrl = fullPath.replace(/^\/proxy\//, 'https://');
+            
+            if (!omniUrl.startsWith('http://') && !omniUrl.startsWith('https://')) {
+                omniUrl = 'https://' + omniUrl;
+            }
+            
             console.log(`Proxying ${method.toUpperCase()} request to:`, omniUrl);
             
-            const urlMatch = omniUrl.match(/https?:\/\/([^\/]+)/);
+            const urlMatch = omniUrl.match(/https?:\/\/([^\/\?]+)/);
             const omniHostname = urlMatch ? urlMatch[1] : '';
+            
+            if (!omniHostname) {
+                console.error('Could not extract hostname from URL:', omniUrl);
+                return res.status(400).send('Invalid proxy URL format');
+            }
             
             const headers = {
                 'Content-Type': req.get('content-type') || 'application/json',
