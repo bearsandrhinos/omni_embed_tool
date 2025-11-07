@@ -146,6 +146,7 @@ function rewriteUrls(content, omniHostname, basePath) {
     });
     
     // Rewrite fetch() calls in JavaScript
+    // This is critical for Remix data routes and API calls
     content = content.replace(/fetch\s*\(\s*["']([^"']+)["']/gi, (match, url) => {
         if (url.startsWith('http://') || url.startsWith('https://')) {
             if (url.includes(omniHostname)) {
@@ -157,6 +158,12 @@ function rewriteUrls(content, omniHostname, basePath) {
                 }
             }
         } else if (url.startsWith('/') && !url.startsWith('/proxy/')) {
+            // For relative URLs, preserve query string if present
+            const urlObj = new URL(url, `https://${omniHostname}`);
+            return `fetch("${basePath}${urlObj.pathname}${urlObj.search}${urlObj.hash}")`;
+        } else if (url.startsWith('?') || url.includes('_data=')) {
+            // Handle query string only URLs (common in Remix)
+            // These need to be appended to the current base path
             return `fetch("${basePath}${url}")`;
         }
         return match;
@@ -264,6 +271,14 @@ app.get('/proxy/*', async (req, res) => {
             redirect: 'follow',
         });
         
+        // Log 403 errors for debugging
+        if (response.status === 403) {
+            console.error('❌ 403 Forbidden for:', omniUrl);
+            console.error('Request headers:', headers);
+            console.error('Response status:', response.status);
+            console.error('Response headers:', Object.fromEntries(response.headers.entries()));
+        }
+        
         // Get content type
         const contentType = response.headers.get('content-type') || 'text/html';
         const isText = contentType.includes('text/') || 
@@ -316,15 +331,23 @@ app.get('/proxy/*', async (req, res) => {
                     
                     // Calculate the correct base path - should be the directory of the current page
                     // If URL is /proxy/hostname/path/to/page, base should be /proxy/hostname/path/to/
-                    const urlPath = new URL(omniUrl).pathname;
-                    const urlDir = urlPath.substring(0, urlPath.lastIndexOf('/') + 1);
-                    const correctBasePath = `${basePath}${urlDir}`;
-                    
-                    // Insert base tag right after <head> to help with relative URLs
-                    if (modifiedContent.includes('<head>')) {
-                        modifiedContent = modifiedContent.replace('<head>', `<head><base href="${correctBasePath}">`);
-                    } else if (modifiedContent.includes('<html>')) {
-                        modifiedContent = modifiedContent.replace('<html>', `<html><head><base href="${correctBasePath}"></head>`);
+                    try {
+                        const urlPath = new URL(omniUrl).pathname;
+                        const urlDir = urlPath.substring(0, urlPath.lastIndexOf('/') + 1);
+                        const correctBasePath = `${basePath}${urlDir}`;
+                        
+                        // Insert base tag right after <head> to help with relative URLs and React hydration
+                        if (modifiedContent.includes('<head>')) {
+                            modifiedContent = modifiedContent.replace('<head>', `<head><base href="${correctBasePath}">`);
+                        } else if (modifiedContent.includes('<html>')) {
+                            modifiedContent = modifiedContent.replace('<html>', `<html><head><base href="${correctBasePath}"></head>`);
+                        }
+                    } catch (e) {
+                        console.warn('Could not set base tag:', e);
+                        // Fallback: use the basePath
+                        if (modifiedContent.includes('<head>')) {
+                            modifiedContent = modifiedContent.replace('<head>', `<head><base href="${basePath}/">`);
+                        }
                     }
                 }
             }
