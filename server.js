@@ -292,6 +292,19 @@ app.get('/proxy/*', async (req, res) => {
             } else {
                 // For HTML/JS, rewrite all URLs
                 modifiedContent = rewriteUrls(modifiedContent, omniHostname, basePath);
+                
+                // For HTML, add a base tag to help with relative URLs and React hydration
+                if (contentType.includes('text/html')) {
+                    // Remove any existing base tags first
+                    modifiedContent = modifiedContent.replace(/<base[^>]*>/gi, '');
+                    
+                    // Insert base tag right after <head> to help with relative URLs
+                    if (modifiedContent.includes('<head>')) {
+                        modifiedContent = modifiedContent.replace('<head>', `<head><base href="${basePath}/">`);
+                    } else if (modifiedContent.includes('<html>')) {
+                        modifiedContent = modifiedContent.replace('<html>', `<html><head><base href="${basePath}/"></head>`);
+                    }
+                }
             }
         }
         
@@ -300,7 +313,7 @@ app.get('/proxy/*', async (req, res) => {
         res.set({
             'Content-Type': contentType,
             'X-Frame-Options': 'ALLOWALL',
-            'Content-Security-Policy': `frame-ancestors 'self' ${currentOrigin} http://localhost:* http://127.0.0.1:* https://*; default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ${currentOrigin} /proxy/ https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ${currentOrigin} /proxy/ https:; style-src 'self' 'unsafe-inline' 'unsafe-hashes' data: blob: ${currentOrigin} /proxy/ https:; img-src 'self' data: blob: ${currentOrigin} /proxy/ https:; font-src 'self' data: blob: ${currentOrigin} /proxy/ https:; connect-src 'self' ${currentOrigin} /proxy/ https: http: wss: ws:;`,
+            'Content-Security-Policy': `frame-ancestors 'self' ${currentOrigin} http://localhost:* http://127.0.0.1:* https://*; default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ${currentOrigin} https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ${currentOrigin} https:; style-src 'self' 'unsafe-inline' 'unsafe-hashes' data: blob: ${currentOrigin} https:; img-src 'self' data: blob: ${currentOrigin} https:; font-src 'self' data: blob: ${currentOrigin} https:; connect-src 'self' ${currentOrigin} https: http: wss: ws:;`,
             'X-Content-Type-Options': 'nosniff',
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
